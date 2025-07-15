@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HAMR Test Administrator</title>
+    <style>
+        /* Styles inspired by Grok/xAI: dark, minimalistic, futuristic with subtle glows */
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #app {
+            max-width: 400px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.2);
+        }
+
+        #status {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #00ffff;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: background 0.3s, transform 0.1s;
+            margin: 10px;
+        }
+
+        button:hover {
+            background-color: #00bfff;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        #stop-btn {
+            background-color: #ff4d4d;
+        }
+
+        #stop-btn:hover {
+            background-color: #ff0000;
+        }
+
+        #score {
+            font-size: 20px;
+            margin-top: 20px;
+            color: #00ffff;
+        }
+
+        #progress-container {
+            background: rgba(255, 255, 255, 0.1);
+            height: 10px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        #progress-bar {
+            background: #00ffff;
+            height: 100%;
+            width: 100%;
+            transition: width 0.05s linear;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <h1>HAMR Test Administrator</h1>
+        <div id="status">
+            <p>Current Shuttle: <span id="shuttleDisplay">0</span></p>
+            <p>Shuttles Completed: <span id="completed">0</span></p>
+            <p id="time-left">Time left: 0.0s</p>
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+        </div>
+        <button id="start-btn">Start Test</button>
+        <button id="stop-btn" style="display: none;">Stop Test</button>
+        <div id="score"></div>
+    </div>
+    <script>
+        // Levels data from Air Force HAMR protocol
+        const levels = [
+            { level: 1, shuttles: 7, timePer: 9.00 },
+            { level: 2, shuttles: 8, timePer: 8.00 },
+            { level: 3, shuttles: 8, timePer: 7.58 },
+            { level: 4, shuttles: 9, timePer: 7.20 },
+            { level: 5, shuttles: 9, timePer: 6.86 },
+            { level: 6, shuttles: 10, timePer: 6.55 },
+            { level: 7, shuttles: 10, timePer: 6.26 },
+            { level: 8, shuttles: 11, timePer: 6.00 },
+            { level: 9, shuttles: 11, timePer: 5.76 },
+            { level: 10, shuttles: 11, timePer: 5.54 },
+            { level: 11, shuttles: 12, timePer: 5.33 },
+            { level: 12, shuttles: 12, timePer: 5.14 },
+            { level: 13, shuttles: 13, timePer: 4.97 },
+            { level: 14, shuttles: 13, timePer: 4.80 },
+            { level: 15, shuttles: 13, timePer: 4.65 },
+            { level: 16, shuttles: 14, timePer: 4.50 },
+            { level: 17, shuttles: 14, timePer: 4.36 },
+            { level: 18, shuttles: 15, timePer: 4.24 },
+            { level: 19, shuttles: 15, timePer: 4.11 },
+            { level: 20, shuttles: 16, timePer: 4.00 },
+            { level: 21, shuttles: 16, timePer: 3.89 }
+        ];
+
+        // Flatten to shuttle times array
+        const shuttleTimes = [];
+        levels.forEach(lev => {
+            for (let i = 0; i < lev.shuttles; i++) {
+                shuttleTimes.push(lev.timePer);
+            }
+        });
+
+        let currentIndex = 0;
+        let timerId = null;
+        let progressInterval = null;
+        let audioCtx = null;
+
+        function playBeep() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioCtx.createOscillator();
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+            oscillator.connect(audioCtx.destination);
+            oscillator.start();
+            setTimeout(() => oscillator.stop(), 100);
+        }
+
+        function getLevelSub(shuttleNum) {
+            let cum = 0;
+            for (let lev of levels) {
+                cum += lev.shuttles;
+                if (shuttleNum <= cum) {
+                    const sub = shuttleNum - (cum - lev.shuttles);
+                    return { level: lev.level, sub };
+                }
+            }
+            return { level: levels[levels.length - 1].level, sub: shuttleNum - (cum - levels[levels.length - 1].shuttles) };
+        }
+
+        function updateDisplay(shuttleStr, completed) {
+            document.getElementById('shuttleDisplay').textContent = shuttleStr;
+            document.getElementById('completed').textContent = completed;
+        }
+
+        function startTest() {
+            currentIndex = 0;
+            playBeep(); // Initial beep to start the first shuttle
+            const shuttleNum = 1;
+            const { level, sub } = getLevelSub(shuttleNum);
+            updateDisplay(`${level}-${sub}`, 0);
+            document.getElementById('start-btn').style.display = 'none';
+            document.getElementById('stop-btn').style.display = 'inline-block';
+            document.getElementById('score').textContent = '';
+            document.getElementById('progress-bar').style.width = '100%';
+            document.getElementById('time-left').textContent = `Time left: ${shuttleTimes[0].toFixed(1)}s`;
+            scheduleNextBeep();
+        }
+
+        function scheduleNextBeep() {
+            if (currentIndex >= shuttleTimes.length) {
+                stopTest();
+                return;
+            }
+            const intervalTime = shuttleTimes[currentIndex] * 1000;
+            const startTime = Date.now();
+
+            timerId = setTimeout(() => {
+                playBeep();
+                currentIndex++;
+                const completed = currentIndex;
+                if (currentIndex >= shuttleTimes.length) {
+                    stopTest();
+                    return;
+                }
+                const shuttleNum = currentIndex + 1;
+                const { level, sub } = getLevelSub(shuttleNum);
+                updateDisplay(`${level}-${sub}`, completed);
+                if (progressInterval) clearInterval(progressInterval);
+                document.getElementById('progress-bar').style.width = '100%';
+                document.getElementById('time-left').textContent = `Time left: ${shuttleTimes[currentIndex].toFixed(1)}s`;
+                scheduleNextBeep();
+            }, intervalTime);
+
+            progressInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                let remaining = intervalTime - elapsed;
+                if (remaining < 0) remaining = 0;
+                document.getElementById('progress-bar').style.width = (remaining / intervalTime * 100) + '%';
+                document.getElementById('time-left').textContent = `Time left: ${(remaining / 1000).toFixed(1)}s`;
+                if (remaining <= 0) {
+                    clearInterval(progressInterval);
+                }
+            }, 100);
+        }
+
+        function stopTest() {
+            clearTimeout(timerId);
+            if (progressInterval) clearInterval(progressInterval);
+            document.getElementById('progress-bar').style.width = '0%';
+            document.getElementById('time-left').textContent = 'Time left: 0.0s';
+            document.getElementById('start-btn').style.display = 'inline-block';
+            document.getElementById('stop-btn').style.display = 'none';
+            const finalShuttles = currentIndex; // Last completed shuttle
+            document.getElementById('score').textContent = `Test Stopped. Total Shuttles Completed: ${finalShuttles}`;
+        }
+
+        document.getElementById('start-btn').addEventListener('click', startTest);
+        document.getElementById('stop-btn').addEventListener('click', stopTest);
+    </script>
+</body>
+</html>
