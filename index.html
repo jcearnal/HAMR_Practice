@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HAMR Test Administrator</title>
+    <title>HAMR Practice</title>
     <style>
         /* Styles inspired by Grok/xAI: dark, minimalistic, futuristic with subtle glows */
         body {
@@ -94,7 +94,7 @@
 </head>
 <body>
     <div id="app">
-        <h1>HAMR Test Administrator</h1>
+        <h1>HAMR Practice</h1>
         <div id="status">
             <p>Current Shuttle: <span id="shuttleDisplay">0</span></p>
             <p>Shuttles Completed: <span id="completed">0</span></p>
@@ -174,14 +174,44 @@
         }
 
         function startTest() {
-            currentIndex = 0;
-            playBeep(); // Initial beep to start the first shuttle
-            const shuttleNum = 1;
-            const { level, sub } = getLevelSub(shuttleNum);
-            updateDisplay(`${level}-${sub}`, 0);
             document.getElementById('start-btn').style.display = 'none';
             document.getElementById('stop-btn').style.display = 'inline-block';
             document.getElementById('score').textContent = '';
+            startCountdown();
+        }
+
+        function startCountdown() {
+            currentIndex = 0;
+            let count = 5;
+            updateDisplay('Get Ready', 0);
+            document.getElementById('time-left').textContent = `Countdown: ${count}s`;
+            document.getElementById('progress-bar').style.width = '100%';
+            const startTime = Date.now();
+            playBeep(); // Initial beep at 5
+
+            // Beeps at 4,3,2,1,0
+            for (let i = 1; i <= 5; i++) {
+                setTimeout(() => playBeep(), i * 1000);
+            }
+
+            progressInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                let remaining = 5000 - elapsed;
+                if (remaining < 0) remaining = 0;
+                document.getElementById('progress-bar').style.width = (remaining / 5000 * 100) + '%';
+                const displayCount = Math.ceil(remaining / 1000);
+                document.getElementById('time-left').textContent = `Countdown: ${displayCount}s`;
+                if (remaining <= 0) {
+                    clearInterval(progressInterval);
+                    initiateTest();
+                }
+            }, 50);
+        }
+
+        function initiateTest() {
+            const shuttleNum = 1;
+            const { level, sub } = getLevelSub(shuttleNum);
+            updateDisplay(`${level}-${sub}`, 0);
             document.getElementById('progress-bar').style.width = '100%';
             document.getElementById('time-left').textContent = `Time left: ${shuttleTimes[0].toFixed(1)}s`;
             scheduleNextBeep();
@@ -221,7 +251,7 @@
                 if (remaining <= 0) {
                     clearInterval(progressInterval);
                 }
-            }, 100);
+            }, 50);
         }
 
         function stopTest() {
