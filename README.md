@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a simple web-based practice tool for the Air Force High Altitude Multi-Shuttle Run (HAMR) test. It simulates the HAMR test by playing beeps at the appropriate intervals based on official Air Force protocols, allowing users to practice their pacing and endurance. The app includes a 5-second countdown before starting, a progress bar for time remaining in each shuttle, and displays the current shuttle (e.g., 1-1, 1-2) and total shuttles completed.
+This is a simple web-based practice tool for the Air Force High Aerobic Multi-Shuttle Run (HAMR) test. It simulates the HAMR test by playing beeps at the appropriate intervals based on official Air Force protocols, allowing users to practice their pacing and endurance. The app includes a 5-second countdown before starting, a progress bar for time remaining in each shuttle, and displays the current shuttle (e.g., 1-1, 1-2) and total shuttles completed.
 
 This tool was created by Grok 4, built by xAI.
 
